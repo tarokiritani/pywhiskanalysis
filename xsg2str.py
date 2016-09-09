@@ -6,41 +6,49 @@ Created on Tue Jul  5 12:57:56 2016
 """
 import sqlite3
 from scipy.io import loadmat
-import numpy as np
 import os
 import re
 import pdb
-def xsg2str(xsgfile):
-    mat = loadmat(xsgfile,struct_as_record=False,squeeze_me=True)
-    trace = mat['data'].ephys.trace_1[::4]
-    sec = np.arange(10000*60)/10000
-    outputfile = 'C:/Users/kiritani/Documents/data/amazons3/'+os.path.basename(xsgfile)
-    outputfile = outputfile.replace('.xsg','.txt')
-    with open(outputfile,'w') as text_file:
-        text_file.write("sec,vm\\n")
-        for s, t in zip(sec,trace):
-            text_file.write("%.4f,%.2f\\n" % (s, t))
-    return outputfile
 
-def mat2str(matpaths,xsgfilename):
+dfolder = 'C:/Users/kiritani/Documents/data/'
+
+def xsg2str(xsgpath):
+    mat = loadmat(xsgpath,struct_as_record=False,squeeze_me=True)
+    trace = mat['data'].ephys.trace_1[::4]
+    #global dfolder    
+    outputpath = dfolder + 'amazons3/'+os.path.basename(xsgpath)
+    outputpath = outputpath.replace('.xsg','.txt')
+    with open(outputpath,'w') as text_file:
+        text_file.write("sec,vm\\n")
+        for i, t in enumerate(trace):
+            text_file.write("%.4f,%.2f\\n" % (i/10000, t))
+
+def mat2str(matpaths, xsgpath):
     for path in matpaths:
         mat = loadmat(path, struct_as_record=False,squeeze_me=True)
+        outputpath = dfolder + 'amazons3/'+os.path.basename(xsgpath)
         if 'angleArray' in mat:
             trace=mat['angleArray']
-            sec=np.arange(500*60)/10000
-            outputfile = 'C/Users/kiritani/Documents/data/amazons3/whisk'+xsgfilename
-            with open(outputfile,'w') as text_file:
+            with open(outputpath.replace('.xsg','.whisk'),'w') as text_file:
                 text_file.write("sec,degree\\n")
-                for s, t in zip(sec,trace):
-       	           text_file.write("%.3f,%.1f\\n" % (s, t))
-    return outputfile
+                for i, t in enumerate(trace):
+                    text_file.write("%.3f,%.1f\\n" % (i/500, t))
+        if 'onOffTiming' in mat:
+            onoffs = mat['onOffTiming']
+            if onoffs.ndim == 1:
+                onoffs = onoffs.reshape(-1,2)
+            ons = ','.join(str(e) for e in onoffs[:,0]) + '\n'
+            offs = ','.join(str(e) for e in onoffs[:,1])
+            with open(outputpath.replace('.xsg','.contact'),'w') as text_file:
+                text_file.write(ons)
+                text_file.write(offs)
 
 def main():
     tables = ['cells','analyses','mice']
-    conn = sqlite3.connect('C:/Users/kiritani/Documents/data/GitHub/experiments/db/development.sqlite3')
+    conn = sqlite3.connect(dfolder+'GitHub/experiments/db/development.sqlite3')    
     conn.row_factory = sqlite3.Row
     c = conn.cursor()
-    conn_new = sqlite3.connect('C:/Users/kiritani/Documents/data/GitHub/barrel_vm/db/development.sqlite3')
+    conn_new = sqlite3.connect(dfolder +'GitHub/barrel_vm/db/development.sqlite3')
     conn_new.row_factory = sqlite3.Row
     c_new = conn_new.cursor()
     for table in tables:
@@ -56,11 +64,12 @@ def main():
             qmarks = '?,'*len(keys)
             qmarks = qmarks[0:-1]
             c_new.execute("INSERT OR REPLACE INTO " + table + " ("+columns+") VALUES ("+qmarks+");",tuple(map(lambda x: row[x], keys)))
+            print(row['id'])
             conn_new.commit()
     conn.close()
-    
     c_new.execute("SELECT * FROM analyses")
     rows = c_new.fetchall()
+
     for row in rows:
         try:
             xsgpath = re.search('\w[^;]*.xsg',row['file'])
@@ -68,14 +77,17 @@ def main():
             
             if xsgpath:
                 xsgpath = xsgpath.group(0)
-                xsgfilename = xsg2str(xsgpath)
-                mat2str(matpaths,xsgfilename)
-                file = os.path.basename(xsgpath).replace('.xsg','.txt')
+                xsg2str(xsgpath)
+                try:
+                    mat2str(matpaths,xsgpath)
+                except FileNotFoundError:
+                    pass
+                file = os.path.basename(xsgpath).replace('.xsg','')
+                print(file)
                 c_new.execute("UPDATE analyses SET file = '" + file + "' WHERE id = %s" % row['id'])
             else:
                 c_new.execute("DELETE FROM analyses WHERE id = %s" % row['id'])
             conn_new.commit()
-            
         except AttributeError:
             pass
     conn_new.close()
