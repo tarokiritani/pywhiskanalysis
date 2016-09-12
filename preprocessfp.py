@@ -209,6 +209,7 @@ def calc_std_vm(n):
 
 def calc_mean_vm(n):
     for qw in ['quiet', 'whisk']:
+        pdb.set_trace()
         n[qw]['mean Vm (mV)'] = concat([concat(r[qw]['seg']) for r in n['recordings']]).mean()
     return n
 
@@ -315,7 +316,8 @@ def main():
     makedirs(dirpath+'/neurons')
     chdir(dirpath)
     if exptype == 'free whisking':
-        fs = [getfiles,remove_aps,getwhiskpeaks,whiskclass,calc_ap_rates, calc_mean_vm, calc_std_vm,calc_fft,]
+        fs = [getfiles,remove_aps,getwhiskpeaks,whiskclass,calc_ap_rates, calc_mean_vm, calc_std_vm,#calc_fft,
+              ]
     elif exptype == 'coil stim 0p5Hz':
         fs = [getfiles,whiskclass,lambda x: onsetanalysis(x,exptype),]
     elif exptype == 'active touch':
