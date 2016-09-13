@@ -32,7 +32,7 @@ from pandas import concat, read_sql_query
 import itertools
 from scipy.ndimage.filters import maximum_filter, minimum_filter, median_filter
 import pdb
-from statistics import median_low
+from statistics import median_low, StatisticsError
 
 
 def sql2neurons(exptype,celltype,snames):#coil stim 0p5Hz, free whisking, intrinsic current injection, intrinsic200ms
@@ -238,16 +238,22 @@ def getwhiskpeaks(n, windowsize=30):
         propeaks = tr[(tr==maxfiltered) & (tr - minfiltered > 5)]
         propeaks_index = propeaks.index
         propeaks_index = np.split(propeaks_index, np.where(np.diff(propeaks_index)>0.01)[0]+1)
-        r['protractions']=propeaks[map(median_low, propeaks_index)]
+        try:
+            r['protractions']=propeaks[map(median_low, propeaks_index)]
+        except StatisticsError:
+            r['protractions']=DataFrame()
         repeaks = tr[(tr==minfiltered) & (maxfiltered - tr > 5)]
         repeaks_index = repeaks.index
         repeaks_index = np.split(repeaks_index, np.where(np.diff(repeaks_index)>0.01)[0]+1)
-        r['retractions']=repeaks[map(median_low, repeaks_index)]        
+        try:
+            r['retractions']=repeaks[map(median_low, repeaks_index)]        
+        except StatisticsError:
+            r['retractions']=DataFrame()
         
-        protractions.append(cut_up(r['ephys'], r['protractions'].index, 0.1, 0.1, r['samplerate']))
-        retractions.append(cut_up(r['ephys'], r['retractions'].index, 0.1, 0.1, r['samplerate']))
-    n['ephysprotractions']=concat(protractions, axis=1)
-    n['ephysretractions']=concat(retractions, axis=1)
+#        protractions.append(cut_up(r['ephys'], r['protractions'].index, 0.1, 0.1, r['samplerate']))
+#        retractions.append(cut_up(r['ephys'], r['retractions'].index, 0.1, 0.1, r['samplerate']))
+#    n['ephysprotractions']=concat(protractions, axis=1)
+#    n['ephysretractions']=concat(retractions, axis=1)
     return n
 
 def hilbert_transform(n):
