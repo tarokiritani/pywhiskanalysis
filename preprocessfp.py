@@ -203,14 +203,21 @@ def calc_ap_rates(n):
     return n
 
 def calc_std_vm(n):
-    for i, qw in enumerate(['quiet', 'whisk']):
+    for qw in ['quiet', 'whisk']:
+        values = []
+        for r in n['recordings']:
+            for seg in r[qw]['seg']:
+                values.extend(seg.values)
         n[qw]['std Vm (mV)'] = concat([concat(r[qw]['seg']) for r in n['recordings']]).std()
     return n
 
 def calc_mean_vm(n):
     for qw in ['quiet', 'whisk']:
-        pdb.set_trace()
-        n[qw]['mean Vm (mV)'] = concat([concat(r[qw]['seg']) for r in n['recordings']]).mean()
+        values = []        
+        for r in n['recordings']:
+            for seg in r[qw]['seg']:
+                values.extend(seg.values)
+        n[qw]['mean Vm (mV)'] = np.mean(values)
     return n
 
 def calc_crosscorr(n):
