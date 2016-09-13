@@ -121,7 +121,10 @@ def whiskclass(neuron, mindur=0.5, threshold=0.8):
         axes[0].set_title(neuron['depth'])
         if 'protractions' in r:
             axes[1].plot(r['protractions'],'+r')
-            axes[1].plot(r['retractions'],'+g')
+            try:            
+                axes[1].plot(r['retractions'],'+g')
+            except ArithmeticError:
+                pdb.set_trset_trace()
         if 'onOff' in r:
             for contact in r['onOff']:
                 axes[0].axvspan(*contact,color='red')
@@ -417,7 +420,8 @@ def main():
 
     if exptype == 'free whisking':
         fig, axes = plt.subplots(4,4,figsize=(16, 12))
-        for ii, analysis in enumerate(['AP rate (Hz)','mean Vm (mV)','std Vm (mV)','FFT1-5 (mV)']):
+        for ii, analysis in enumerate(['AP rate (Hz)','mean Vm (mV)','std Vm (mV)',#'FFT1-5 (mV)']):
+]):
             for col, L in enumerate(['L23','L4']):
                 gmat = np.array(groupdata[L][analysis])
                 axes[ii, col].plot(gmat.transpose(),color='blue',alpha=0.5)
