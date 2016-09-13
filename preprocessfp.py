@@ -208,7 +208,7 @@ def calc_std_vm(n):
         for r in n['recordings']:
             for seg in r[qw]['seg']:
                 values.extend(seg.values)
-        n[qw]['std Vm (mV)'] = concat([concat(r[qw]['seg']) for r in n['recordings']]).std()
+        n[qw]['std Vm (mV)'] = np.std(values)
     return n
 
 def calc_mean_vm(n):
