@@ -33,22 +33,28 @@ import itertools
 from scipy.ndimage.filters import maximum_filter, minimum_filter, median_filter
 import pdb
 from statistics import median_low, StatisticsError
+from datetime import datetime
 
 
 def sql2neurons(exptype,celltype,snames):#coil stim 0p5Hz, free whisking, intrinsic current injection, intrinsic200ms
     c = sqlite3.connect('C:/Users/kiritani/Documents/data/GitHub/experiments/db/development.sqlite3')
-    sql = "SELECT * FROM analyses INNER JOIN cells ON analyses.cell_id = cells.id INNER JOIN mice ON cells.mouse_id = mice.id"
+    sql = "SELECT cell_id, file, analysis_type, cells.created_at, species_strain, cell_type, depth, date_of_birth FROM analyses INNER JOIN cells ON analyses.cell_id = cells.id INNER JOIN mice ON cells.mouse_id = mice.id"
     df = read_sql_query(sql,c)
     c.close()
     df = df[df['species_strain'].str.contains('|'.join(snames))]
     df = df[df['analysis_type'] == exptype]
     df = df[df['cell_type'] == celltype]
     neurons = []
+    pdb.set_trace()
     for ci in df['cell_id'].unique():
         neuron=df[df['cell_id']==ci]
         files=neuron['file'].values
+        dob = neuron['date_of_birth'].values[0][:10]
+        recdate = neuron['created_at'].values[0][:10]
+        age = datetime.strptime(recdate,'%Y-%m-%d') - datetime.strptime(dob,'%Y-%m-%d')
         recs = [{'files':f} for f in files]
-        neurons.append({'id':ci, 'recordings':recs, 'depth':neuron['depth'].values[0]})
+        neurons.append({'id':ci, 'recordings':recs, 'depth':neuron['depth'].values[0], 'age':age.days})
+        
     return neurons
 
 def getfiles(neuron):
@@ -70,9 +76,9 @@ def getfiles(neuron):
             width=mat['header'].ephys.ephys.pulseParameters[0].squarePulseTrainWidth
             r['stimtimes']=np.arange(delay,dur,width)
         
-        r['whisker']=series(mat['angleArray'])
-        r['whisker'].index += 1
-        r['whisker'].index /= 500
+#        r['whisker']=series(mat['angleArray'])
+#        r['whisker'].index += 1
+#        r['whisker'].index /= 500
         if 'peakTiming' in mat:
             r['spkpeaks']=np.reshape(mat['peakTiming'],(-1))
         if 'onOffTiming' in mat:
@@ -325,7 +331,7 @@ def remove_aps(n, rolling_size=2):
 
 
 def main():
-    exptype = 'free whisking'
+    exptype = 'active touch'
     celltype = 'tdTomato'
     snames = ['SOM']
     dirpath='C:/Users/kiritani/Documents/data/analysis/'+exptype+'/'+celltype+ ''.join(snames)+time.strftime('%Y%m%d%H%M')
@@ -337,7 +343,8 @@ def main():
     elif exptype == 'coil stim 0p5Hz':
         fs = [getfiles,whiskclass,lambda x: onsetanalysis(x,exptype),]
     elif exptype == 'active touch':
-        fs = [getfiles,whiskclass,touchOnOff,cluster_touches]
+        fs = [getfiles,#whiskclass,
+              touchOnOff,cluster_touches]
     neurons = reduce(lambda a, x: map(x,a),fs, sql2neurons(exptype,celltype,snames))
 
     groupdata = defaultdict(dict)
