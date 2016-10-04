@@ -9,21 +9,13 @@ from scipy.io import loadmat
 import os
 import re
 import pdb
+from heapq import merge
 
 dfolder = 'C:/Users/kiritani/Documents/data/'
 
-def xsg2str(xsgpath):
-    mat = loadmat(xsgpath,struct_as_record=False,squeeze_me=True)
-    trace = mat['data'].ephys.trace_1[::4]
-    #global dfolder    
-    outputpath = dfolder + 'amazons3/'+os.path.basename(xsgpath)
-    outputpath = outputpath.replace('.xsg','.txt')
-    with open(outputpath,'w') as text_file:
-        text_file.write("sec,vm\\n")
-        for i, t in enumerate(trace):
-            text_file.write("%.4f,%.2f\\n" % (i/10000, t))
-
 def mat2str(matpaths, xsgpath):
+    xsg = loadmat(xsgpath,struct_as_record=False,squeeze_me=True)
+    xsgtrace = xsg['data'].ephys.trace_1
     for path in matpaths:
         mat = loadmat(path, struct_as_record=False,squeeze_me=True)
         outputpath = dfolder + 'amazons3/'+os.path.basename(xsgpath)
@@ -42,6 +34,23 @@ def mat2str(matpaths, xsgpath):
             with open(outputpath.replace('.xsg','.contact'),'w') as text_file:
                 text_file.write(ons)
                 text_file.write(offs)
+        if 'peakTiming' in mat:
+            spks = mat['peakTiming'] * 40000
+            spkindex = map(int, spks)
+            spkvicinity = []
+            for s in spkindex:
+                start = max(0,s-40)
+                end = min(s+40, len(xsgtrace))                    
+                spkvicinity.extend(range(start,end,4))
+    constinterval = range(4,len(xsgtrace),12)
+    indices = list(set(spkvicinity) | set(constinterval))
+    indices.sort()
+    with open(outputpath.replace('.xsg','.txt'),'w') as text_file:
+        text_file.write("sec,vm\\n")
+        for i in indices:
+            timestr = str(i/40000)
+            vmstr = ",%.2f\\n" % xsgtrace[i]
+            text_file.write(timestr + vmstr)
 
 def main():
     tables = ['cells','analyses','mice']
@@ -54,6 +63,7 @@ def main():
     for table in tables:
         c.execute('SELECT * FROM ' + table)
         rows = c.fetchall()
+        c_new.execute('DELETE FROM ' +table)
         for row in rows:
             keys = row.keys()
             try:
@@ -63,11 +73,11 @@ def main():
             columns = ','.join(keys)    
             qmarks = '?,'*len(keys)
             qmarks = qmarks[0:-1]
-            c_new.execute("INSERT OR REPLACE INTO " + table + " ("+columns+") VALUES ("+qmarks+");",tuple(map(lambda x: row[x], keys)))
+            c_new.execute("INSERT INTO " + table + " ("+columns+") VALUES ("+qmarks+");",tuple(map(lambda x: row[x], keys)))
             print(row['id'])
             conn_new.commit()
     conn.close()
-    c_new.execute("SELECT * FROM analyses")
+    c_new.execute("SELECT * FROM analyses WHERE analysis_type IN ('free whisking', 'active touch')")
     rows = c_new.fetchall()
 
     for row in rows:
@@ -76,15 +86,14 @@ def main():
             matpaths = re.findall('\w[^;]*.mat',row['file'])
             
             if xsgpath:
-                xsgpath = xsgpath.group(0)
-                xsg2str(xsgpath)
                 try:
+                    xsgpath = xsgpath.group(0)
                     mat2str(matpaths,xsgpath)
+                    file = os.path.basename(xsgpath).replace('.xsg','')
+                    c_new.execute("UPDATE analyses SET file = '" + file + "' WHERE id = %s" % row['id'])
                 except FileNotFoundError:
-                    pass
-                file = os.path.basename(xsgpath).replace('.xsg','')
-                print(file)
-                c_new.execute("UPDATE analyses SET file = '" + file + "' WHERE id = %s" % row['id'])
+                    
+                    print(xsgpath)
             else:
                 c_new.execute("DELETE FROM analyses WHERE id = %s" % row['id'])
             conn_new.commit()
